@@ -33,6 +33,7 @@ void            fileinit(void);
 int             fileread(struct file*, uint64, int n);
 int             filestat(struct file*, uint64 addr);
 int             filewrite(struct file*, uint64, int n);
+int             has_permission(struct inode*, int);
 
 // fs.c
 void            fsinit(int);
@@ -125,6 +126,8 @@ void*           memmove(void*, const void*, uint);
 void*           memset(void*, int, uint);
 char*           safestrcpy(char*, const char*, int);
 int             strlen(const char*);
+int             strcmp(const char*, const char*);
+char*           strchr(const char*, char c);
 int             strncmp(const char*, const char*, uint);
 char*           strncpy(char*, const char*, int);
 
@@ -135,6 +138,14 @@ void            argaddr(int, uint64 *);
 int             fetchstr(uint64, char*, int);
 int             fetchaddr(uint64, uint64*);
 void            syscall();
+void            auditinit(void);
+void            audit_syscall(int, uint64);
+void            audit_perm_denial(int, char*);
+void            audit_login_event(int, char*);
+void            audit_sync_disk(int, uint64);
+const char*     syscall_name(int);
+uint64          sys_audit_read(void);
+uint64          sys_audit_login(void);
 
 // trap.c
 extern uint     ticks;

@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "syscall.h"
 
 struct spinlock tickslock;
 uint ticks;
@@ -57,15 +58,30 @@ usertrap(void)
     if(killed(p))
       kexit(-1);
 
-    // sepc points to the ecall instruction,
-    // but we want to return to the next instruction.
-    p->trapframe->epc += 4;
+    {
+      int snum = (int)p->trapframe->a7;
+      uint64 syscall_epc = p->trapframe->epc;
 
-    // an interrupt will change sepc, scause, and sstatus,
-    // so enable only now that we're done with those registers.
-    intr_on();
+      // Skip read/write in pretty-print: user console writes bypass pr.lock
+      // and would interleave with this line character-by-character.
+      if(snum != SYS_read && snum != SYS_write){
+        printf("TRAP_SYSCALL pid=%d uid=%d name=%s epc=0x%lx\n",
+               p->pid, p->uid, syscall_name(snum), syscall_epc);
+      }
 
-    syscall();
+      audit_syscall(snum, syscall_epc);
+
+      // sepc points to the ecall instruction,
+      // but we want to return to the next instruction.
+      p->trapframe->epc += 4;
+
+      // an interrupt will change sepc, scause, and sstatus,
+      // so enable only now that we're done with those registers.
+      intr_on();
+
+      syscall();
+      audit_sync_disk(snum, syscall_epc);
+    }
   } else if((which_dev = devintr()) != 0){
     // ok
   } else if((r_scause() == 15 || r_scause() == 13) &&

@@ -26,6 +26,7 @@ OBJS = \
   $K/pipe.o \
   $K/exec.o \
   $K/sysfile.o \
+  $K/audit.o \
   $K/kernelvec.o \
   $K/plic.o \
   $K/virtio_disk.o
@@ -133,9 +134,11 @@ UPROGS=\
 	$U/_init\
 	$U/_kill\
 	$U/_ln\
+	$U/_login\
 	$U/_ls\
 	$U/_mkdir\
 	$U/_rm\
+	$U/_seccompliance\
 	$U/_sh\
 	$U/_stressfs\
 	$U/_usertests\
@@ -188,8 +191,11 @@ print-gdbport:
 	@echo $(GDBPORT)
 
 QEMU_VERSION := $(shell $(QEMU) --version | head -n 1 | sed -E 's/^QEMU emulator version ([0-9]+\.[0-9]+)\..*/\1/')
+# #region agent log
 check-qemu-version:
-	@if [ "$(shell echo "$(QEMU_VERSION) >= $(MIN_QEMU_VERSION)" | bc)" -eq 0 ]; then \
+	@if [ "$(shell printf '%s\n' $(MIN_QEMU_VERSION) $(QEMU_VERSION) | sort -V | head -n1)" != "$(MIN_QEMU_VERSION)" ]; then \
 		echo "ERROR: Need qemu version >= $(MIN_QEMU_VERSION)"; \
 		exit 1; \
 	fi
+	@printf '%s\n' '{"sessionId":"7a9a48","runId":"post-fix","hypothesisId":"H2","location":"Makefile:check-qemu-version","message":"sort-V qemu check ok","data":{"QEMU_VERSION":"$(QEMU_VERSION)","MIN_QEMU_VERSION":"$(MIN_QEMU_VERSION)","sort_first":"$(shell printf '%s\n' $(MIN_QEMU_VERSION) $(QEMU_VERSION) | sort -V | head -n1)"},"timestamp":$(shell date +%s)000}' >> /home/kali/.cursor/debug-logs/debug-7a9a48.log
+# #endregion

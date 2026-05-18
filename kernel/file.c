@@ -25,6 +25,31 @@ fileinit(void)
   initlock(&ftable.lock, "ftable");
 }
 
+// Check if process has permission for access (4=read, 2=write, 1=execute; may be OR'd).
+int
+has_permission(struct inode *ip, int access)
+{
+  struct proc *p = myproc();
+  int shift, imode;
+
+  if(p->uid == 0)
+    return 1;
+  if(p->uid == ip->uid)
+    shift = 6;
+  else if(p->gid == ip->gid)
+    shift = 3;
+  else
+    shift = 0;
+  imode = (ip->mode >> shift) & 7;
+  if((access & 4) && !(imode & 4))
+    return 0;
+  if((access & 2) && !(imode & 2))
+    return 0;
+  if((access & 1) && !(imode & 1))
+    return 0;
+  return 1;
+}
+
 // Allocate a file structure.
 struct file*
 filealloc(void)
@@ -119,6 +144,10 @@ fileread(struct file *f, uint64 addr, int n)
     r = devsw[f->major].read(1, addr, n);
   } else if(f->type == FD_INODE){
     ilock(f->ip);
+    if(!has_permission(f->ip, 4)){
+      iunlock(f->ip);
+      return -1;
+    }
     if((r = readi(f->ip, 1, addr, f->off, n)) > 0)
       f->off += r;
     iunlock(f->ip);
@@ -159,6 +188,11 @@ filewrite(struct file *f, uint64 addr, int n)
 
       begin_op();
       ilock(f->ip);
+      if(!has_permission(f->ip, 2)){
+        iunlock(f->ip);
+        end_op();
+        return -1;
+      }
       if ((r = writei(f->ip, 1, addr + i, f->off, n1)) > 0)
         f->off += r;
       iunlock(f->ip);

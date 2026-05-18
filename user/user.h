@@ -24,6 +24,25 @@ int getpid(void);
 char* sys_sbrk(int,int);
 int pause(int);
 int uptime(void);
+int useradd(const char*, const char*, int);
+int setuid(int);
+int setgid(int);
+int chmod(const char*, int);
+int chown(const char*, int, int);
+struct audit_rec {
+  int pid;
+  int uid;
+  int tick;
+  int scnum;
+  unsigned long long epc;
+  char extra[16];
+};
+
+int userdel(const char*);
+int passwd(const char*, const char*);
+int audit_read(int, struct audit_rec*);
+int whoami(char*, int);
+int audit_login(int, const char*);
 
 // ulib.c
 int stat(const char*, struct stat*);

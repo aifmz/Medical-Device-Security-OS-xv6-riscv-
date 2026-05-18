@@ -7,6 +7,7 @@
 #include "types.h"
 #include "riscv.h"
 #include "defs.h"
+#include "syscall.h"
 #include "param.h"
 #include "stat.h"
 #include "spinlock.h"
@@ -242,7 +243,7 @@ bad:
   return -1;
 }
 
-static struct inode*
+struct inode*
 create(char *path, short type, short major, short minor)
 {
   struct inode *ip, *dp;
@@ -271,6 +272,9 @@ create(char *path, short type, short major, short minor)
   ip->major = major;
   ip->minor = minor;
   ip->nlink = 1;
+  ip->mode = (type == T_DIR) ? 0755 : 0644;
+  ip->uid = myproc()->uid;
+  ip->gid = myproc()->gid;
   iupdate(ip);
 
   if(type == T_DIR){  // Create . and .. entries.
@@ -333,6 +337,17 @@ sys_open(void)
       end_op();
       return -1;
     }
+  }
+
+  // Check permissions
+  int access_needed = 4; // read
+  if(omode & O_WRONLY || omode & O_RDWR)
+    access_needed |= 2; // write
+  if(!has_permission(ip, access_needed)){
+    audit_perm_denial(SYS_open, path);
+    iunlockput(ip);
+    end_op();
+    return -1;
   }
 
   if(ip->type == T_DEVICE && (ip->major < 0 || ip->major >= NDEV)){
@@ -498,8 +513,67 @@ sys_pipe(void)
     p->ofile[fd0] = 0;
     p->ofile[fd1] = 0;
     fileclose(rf);
-    fileclose(wf);
     return -1;
   }
+  return 0;
+}
+
+uint64
+sys_chmod(void)
+{
+  char path[MAXPATH];
+  int mode;
+
+  if(argstr(0, path, MAXPATH) < 0)
+    return -1;
+  argint(1, &mode);
+
+  begin_op();
+  struct inode *ip = namei(path);
+  if(ip == 0){
+    end_op();
+    return -1;
+  }
+  ilock(ip);
+  if(myproc()->uid != 0 && myproc()->uid != ip->uid){
+    iunlockput(ip);
+    end_op();
+    return -1;
+  }
+  ip->mode = mode;
+  iupdate(ip);
+  iunlockput(ip);
+  end_op();
+  return 0;
+}
+
+uint64
+sys_chown(void)
+{
+  char path[MAXPATH];
+  int uid, gid;
+
+  if(argstr(0, path, MAXPATH) < 0)
+    return -1;
+  argint(1, &uid);
+  argint(2, &gid);
+
+  begin_op();
+  struct inode *ip = namei(path);
+  if(ip == 0){
+    end_op();
+    return -1;
+  }
+  ilock(ip);
+  if(myproc()->uid != 0 && myproc()->uid != ip->uid){
+    iunlockput(ip);
+    end_op();
+    return -1;
+  }
+  ip->uid = uid;
+  ip->gid = gid;
+  iupdate(ip);
+  iunlockput(ip);
+  end_op();
   return 0;
 }
